@@ -7,6 +7,7 @@ import (
 	"syscall"
 
 	"mqtt-tetris-backend/config"
+	database "mqtt-tetris-backend/db"
 	mqttclient "mqtt-tetris-backend/mqtt"
 	"mqtt-tetris-backend/services"
 )
@@ -16,13 +17,18 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+	db, err := database.Open(appConfig)
+	if err != nil {
+		panic(err)
+	}
+	defer db.Close()
 
 	client := mqttclient.NewClient(appConfig)
 	if err := client.Connect(); err != nil {
 		panic(err)
 	}
 
-	messageService := services.NewMessageService()
+	messageService := services.NewMessageService(db)
 
 	for _, topic := range mqttclient.Topics {
 		if err := client.Subscribe(topic, messageService.HandleMessage); err != nil {

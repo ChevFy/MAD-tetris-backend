@@ -7,7 +7,35 @@ type Topic struct {
 
 var Topics = []Topic{
 	{
-		Name: "my/test/topic",
+		Name: "/check_role",
+		QoS:  1,
+	},
+	{
+		Name: "/pay",
+		QoS:  1,
+	},
+	{
+		Name: "/retieve_member",
+		QoS:  1,
+	},
+	{
+		Name: "/retieve_leaderboard",
+		QoS:  1,
+	},
+	{
+		Name: "/add_money",
+		QoS:  1,
+	},
+	{
+		Name: "/create_guest",
+		QoS:  1,
+	},
+	{
+		Name: "/create_member",
+		QoS:  1,
+	},
+	{
+		Name: "/remove_card",
 		QoS:  1,
 	},
 }
