@@ -31,4 +31,4 @@ services:
 
 volumes:
   postgres_data:
-  cloudbeaver_data:~
+  cloudbeaver_data:
