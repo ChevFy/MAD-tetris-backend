@@ -4,7 +4,10 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"log"
 	"strings"
+	"sync/atomic"
+	"time"
 
 	paho "github.com/eclipse/paho.mqtt.golang"
 )
@@ -12,6 +15,8 @@ import (
 type MessageService struct {
 	database *sql.DB
 }
+
+var messageTraceID uint64
 
 type cardRequest struct {
 	CardID string `json:"card_id"`
@@ -32,6 +37,10 @@ func NewMessageService(database *sql.DB) *MessageService {
 }
 
 func (service *MessageService) HandleMessage(client paho.Client, message paho.Message) {
+	traceID := atomic.AddUint64(&messageTraceID, 1)
+	startedAt := time.Now()
+	log.Printf("[trace=%d] received topic=%s payload=%s", traceID, message.Topic(), message.Payload())
+
 	var response interface{}
 	var err error
 
@@ -57,15 +66,24 @@ func (service *MessageService) HandleMessage(client paho.Client, message paho.Me
 	}
 
 	if err != nil {
+		log.Printf("[trace=%d] action failed topic=%s error=%v", traceID, message.Topic(), err)
 		response = map[string]string{"error": err.Error()}
+	} else {
+		log.Printf("[trace=%d] action completed topic=%s", traceID, message.Topic())
 	}
 	payload, err := json.Marshal(response)
 	if err != nil {
+		log.Printf("[trace=%d] response marshal failed topic=%s error=%v", traceID, message.Topic(), err)
 		return
 	}
 
 	token := client.Publish(message.Topic()+"/response", 1, false, payload)
 	token.Wait()
+	if err := token.Error(); err != nil {
+		log.Printf("[trace=%d] response publish failed topic=%s error=%v", traceID, message.Topic()+"/response", err)
+		return
+	}
+	log.Printf("[trace=%d] response sent topic=%s payload=%s duration=%s", traceID, message.Topic()+"/response", payload, time.Since(startedAt))
 }
 
 func (service *MessageService) checkRole(payload []byte) (map[string]string, error) {
