@@ -27,6 +27,7 @@ func main() {
 	if err := client.Connect(); err != nil {
 		panic(err)
 	}
+	defer client.Disconnect(250)
 
 	messageService := services.NewMessageService(db)
 
@@ -46,6 +47,5 @@ func main() {
 			fmt.Printf("Unsubscribe error for %s: %v\n", topic.Name, err)
 		}
 	}
-	client.Disconnect(250)
 	fmt.Println("Disconnected")
 }
