@@ -32,6 +32,11 @@ type memberRequest struct {
 	Username string `json:"username"`
 }
 
+type scoreRequest struct {
+	CardID string `json:"card_id"`
+	Points int64  `json:"points"`
+}
+
 func NewMessageService(database *sql.DB) *MessageService {
 	return &MessageService{database: database}
 }
@@ -55,6 +60,8 @@ func (service *MessageService) HandleMessage(client paho.Client, message paho.Me
 		response, err = service.retrieveLeaderboard()
 	case "/add_money":
 		response, err = service.changeBalance(message.Payload(), true)
+	case "/add_score":
+		response, err = service.addScore(message.Payload())
 	case "/create_guest":
 		response, err = service.createGuest(message.Payload())
 	case "/create_member":
@@ -148,6 +155,36 @@ func (service *MessageService) changeBalance(payload []byte, addMoney bool) (map
 	}
 
 	return map[string]interface{}{"card_id": request.CardID, "amount": request.Amount, "operation": operationName(addMoney)}, nil
+}
+
+// addScore records a MEMBER's high score: it only overwrites the stored points
+// when the new score beats the previous best (guests have no points).
+func (service *MessageService) addScore(payload []byte) (map[string]interface{}, error) {
+	request, err := parseScoreRequest(payload)
+	if err != nil {
+		return nil, err
+	}
+	if request.Points <= 0 {
+		return nil, errors.New("points must be greater than 0")
+	}
+
+	var best int64
+	if err := service.database.QueryRow("SELECT points FROM members WHERE card_id = $1", request.CardID).Scan(&best); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, errors.New("member not found")
+		}
+		return nil, err
+	}
+
+	if request.Points <= best {
+		// not a new record: keep the old best, nothing saved
+		return map[string]interface{}{"card_id": request.CardID, "points": request.Points, "best": best, "updated": false, "operation": "add_score"}, nil
+	}
+
+	if _, err := service.database.Exec("UPDATE members SET points = $1 WHERE card_id = $2", request.Points, request.CardID); err != nil {
+		return nil, err
+	}
+	return map[string]interface{}{"card_id": request.CardID, "points": request.Points, "best": request.Points, "updated": true, "operation": "add_score"}, nil
 }
 
 func (service *MessageService) retrieveMember(payload []byte) (interface{}, error) {
@@ -283,6 +320,14 @@ func parseMoneyRequest(payload []byte) (moneyRequest, error) {
 	var request moneyRequest
 	if err := json.Unmarshal(payload, &request); err != nil || strings.TrimSpace(request.CardID) == "" {
 		return moneyRequest{}, errors.New("card_id and amount are required")
+	}
+	return request, nil
+}
+
+func parseScoreRequest(payload []byte) (scoreRequest, error) {
+	var request scoreRequest
+	if err := json.Unmarshal(payload, &request); err != nil || strings.TrimSpace(request.CardID) == "" {
+		return scoreRequest{}, errors.New("card_id and points are required")
 	}
 	return request, nil
 }

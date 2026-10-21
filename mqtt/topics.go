@@ -27,6 +27,10 @@ var Topics = []Topic{
 		QoS:  1,
 	},
 	{
+		Name: "/add_score",
+		QoS:  1,
+	},
+	{
 		Name: "/create_guest",
 		QoS:  1,
 	},
