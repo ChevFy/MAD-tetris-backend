@@ -68,6 +68,8 @@ func (service *MessageService) HandleMessage(client paho.Client, message paho.Me
 		response, err = service.createMember(message.Payload())
 	case "/remove_card":
 		response, err = service.removeCard(message.Payload())
+	case "/check_balance":
+		response, err = service.checkBalance(message.Payload())
 	default:
 		return
 	}
@@ -185,6 +187,33 @@ func (service *MessageService) addScore(payload []byte) (map[string]interface{},
 		return nil, err
 	}
 	return map[string]interface{}{"card_id": request.CardID, "points": request.Points, "best": request.Points, "updated": true, "operation": "add_score"}, nil
+}
+
+// checkBalance returns the current balance for a card, searching guests first
+// then members (both tables carry a balance column).
+func (service *MessageService) checkBalance(payload []byte) (map[string]interface{}, error) {
+	request, err := parseCardRequest(payload)
+	if err != nil {
+		return nil, err
+	}
+
+	var balance int64
+	err = service.database.QueryRow("SELECT balance FROM guests WHERE card_id = $1", request.CardID).Scan(&balance)
+	if err == nil {
+		return map[string]interface{}{"card_id": request.CardID, "balance": balance, "role": "guest"}, nil
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return nil, err
+	}
+
+	err = service.database.QueryRow("SELECT balance FROM members WHERE card_id = $1", request.CardID).Scan(&balance)
+	if err == nil {
+		return map[string]interface{}{"card_id": request.CardID, "balance": balance, "role": "member"}, nil
+	}
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, errors.New("invalid card")
+	}
+	return nil, err
 }
 
 func (service *MessageService) retrieveMember(payload []byte) (interface{}, error) {

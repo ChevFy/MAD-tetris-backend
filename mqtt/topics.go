@@ -42,4 +42,8 @@ var Topics = []Topic{
 		Name: "/remove_card",
 		QoS:  1,
 	},
+	{
+		Name: "/check_balance",
+		QoS:  1,
+	},
 }

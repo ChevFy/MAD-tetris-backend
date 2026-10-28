@@ -24,6 +24,7 @@ publishes a response on `<topic>/response`.
 | `/create_guest`        | `{"card_id":"..."}`                      | New guest                             |
 | `/create_member`       | `{"card_id":"...","username":"..."}`     | New member                            |
 | `/remove_card`         | `{"card_id":"..."}`                      | Delete guest or member                |
+| `/check_balance`       | `{"card_id":"..."}`                      | Returns current balance + role        |
 
 ## Stack
 
