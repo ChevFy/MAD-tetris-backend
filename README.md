@@ -87,3 +87,56 @@ Verify:
 docker compose exec postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
   -c "SELECT * FROM members;"
 ```
+
+## Production deployment
+
+The production Compose file runs PostgreSQL 16 and the Go MQTT backend.
+It requires Docker with the Compose plugin and access to an external MQTT broker.
+
+1. Copy `.env.example` to `.env` if you do not already have one.
+2. Set `MQTT_BROKER`, `MQTT_CLIENT_ID`, `MQTT_USERNAME`, and `MQTT_PASSWORD`
+   to your broker settings. Use a unique client ID for this backend.
+3. Set `POSTGRES_DB`, `POSTGRES_USER`, and a strong `POSTGRES_PASSWORD`.
+4. Build and start the services:
+
+   ```sh
+   docker compose --env-file .env -f docker-compose.prod.yml up -d --build
+   ```
+
+The backend waits for PostgreSQL to become healthy and connects to `postgres:5432`
+over the Compose network. The production configuration sets this host and port
+automatically, regardless of `POSTGRES_HOST` or `POSTGRES_PORT` in `.env`.
+PostgreSQL is not published on a host port. The backend is an MQTT client and
+does not need an inbound port.
+
+`Dockerfile.prod` builds the Go executable in a separate stage and runs it as a
+non-root user with CA certificates for TLS. `.env` files are excluded from the
+image build; Compose passes configuration to the containers at runtime.
+
+### Database initialization and persistence
+
+Database files are stored in the `postgres_prod_data` named volume, separate from
+the development Compose volume. On first startup with an empty volume, PostgreSQL
+runs `db/migrations/001_create_card_tables.up.sql` to create the tables.
+Initialization scripts do not run again for an existing volume; apply subsequent
+migrations separately. Changing database credentials in `.env` does not update
+users in an existing database.
+
+### Operations
+
+```sh
+# Check service status
+docker compose --env-file .env -f docker-compose.prod.yml ps
+
+# Follow backend logs
+docker compose --env-file .env -f docker-compose.prod.yml logs -f backend
+
+# Rebuild and deploy after code changes
+docker compose --env-file .env -f docker-compose.prod.yml up -d --build
+
+# Stop services while preserving the database volume
+docker compose --env-file .env -f docker-compose.prod.yml down
+```
+
+Use `docker-compose.prod.yml` as a standalone Compose file. Adding `-v` to `down`
+deletes the database volume and its contents.
